@@ -32,7 +32,8 @@ from torch.nn.utils import clip_grad_norm_
 from .baselines import random_action
 from .cognitive import (BELIEF_LOSS_WEIGHT, COGNITIVE_ARCH_ENABLED,
                         SELF_MODEL_LOSS_WEIGHT, CognitiveActorCritic,
-                        SPECIALIST_NAMES, added_parameters)
+                        SPECIALIST_NAMES, added_parameters,
+                        workspace_dominants_by_role)
 from .environment_config import OBSTACLE_SEED
 from .env import PHYSICS_VERSION, REFERENCE_DT
 from .novelty import NoveltyEnv
@@ -612,6 +613,9 @@ def main():
                 "workspace_weights": {role: dict(zip(SPECIALIST_NAMES,
                     sampled_outputs[role].workspace_weights[0, 0].cpu().tolist()))
                     for role in models},
+                "workspace_dominant": workspace_dominants_by_role({role: dict(zip(
+                    SPECIALIST_NAMES, sampled_outputs[role].workspace_weights[0, 0].cpu().tolist()))
+                    for role in models}),
                 "self_model_predicted_position": {role:
                     sampled_outputs[role].predicted_next_state[0, 0, :3].cpu().tolist()
                     for role in models},

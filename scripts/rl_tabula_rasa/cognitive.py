@@ -22,6 +22,22 @@ BELIEF_LOSS_WEIGHT = 0.1
 SPECIALIST_NAMES = ("sensory", "proprioception", "self_model", "belief_state")
 
 
+def workspace_dominant(weights) -> str:
+    """Return the named specialist with the largest workspace weight."""
+    if isinstance(weights, dict):
+        values = [float(weights.get(name, 0.0)) for name in SPECIALIST_NAMES]
+    else:
+        values = [float(value) for value in weights]
+    if len(values) != len(SPECIALIST_NAMES):
+        raise ValueError(f"expected {len(SPECIALIST_NAMES)} workspace weights")
+    return SPECIALIST_NAMES[max(range(len(values)), key=lambda index: values[index])]
+
+
+def workspace_dominants_by_role(weights_by_role: dict) -> dict[str, str]:
+    """Name the leading specialist independently for each role."""
+    return {role: workspace_dominant(weights) for role, weights in weights_by_role.items()}
+
+
 @dataclass
 class CognitiveOutput:
     mean: torch.Tensor
@@ -171,6 +187,11 @@ def self_check():
         assert output.attention_weights.shape == (1, 5, size)
         assert output.workspace_weights.shape == (1, 5, 4)
         assert torch.allclose(output.workspace_weights.sum(-1), torch.ones(1, 5))
+        names = workspace_dominants_by_role({
+            "bat": {"sensory": .1, "proprioception": .2, "self_model": .6, "belief_state": .1},
+            "moth": {"sensory": .1, "proprioception": .7, "self_model": .1, "belief_state": .1},
+        })
+        assert names == {"bat": "self_model", "moth": "proprioception"}
         loss = output.mean.square().mean() + output.predicted_next_state.square().mean()
         loss.backward()
         assert model.workspace_score.weight.grad is not None

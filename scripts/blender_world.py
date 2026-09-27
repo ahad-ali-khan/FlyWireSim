@@ -786,6 +786,9 @@ def setup():
                         f"{name.replace('_', ' ')} {100.0 * float(weight):.0f}%"
                         for name, weight in replay_status["workspace_weights"].get(role, {}).items())
                       for role in ("bat", "moth")),
+                    *(f"{role.title()} dominant: "
+                      f"{replay_status.get('workspace_dominant', {}).get(role, 'n/a')}"
+                      for role in ("bat", "moth")),
                     "Self-model: own next-position prediction  |  Belief: estimated opponent position",
                 ))
                 for role, label in (("bat", "Bat belief → moth"), ("moth", "Moth belief → bat")):
@@ -858,6 +861,7 @@ def setup():
                                           "bat_aligned_thrust_reward", 0.0)),
                                       "phase": phase,
                                       "workspace_weights": record.get("workspace_weights", {}),
+                                      "workspace_dominant": record.get("workspace_dominant", {}),
                                       "self_model_prediction": record.get("self_model_predicted_position", {}),
                                       "belief_estimate": record.get("belief_state_estimated_position", {})})
             else:

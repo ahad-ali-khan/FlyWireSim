@@ -166,6 +166,7 @@ class TrainingRuntime:
             "attention_weights": [0.0] * int(env.observation_space.shape[0]),
             "workspace_weights": {"sensory": 0.0, "proprioception": 0.0,
                                   "self_model": 0.0, "belief_state": 0.0},
+            "workspace_dominant": {"bat": None, "moth": None},
             "belief_state_estimated_position": [0.0, 0.0, 0.0],
             "recent_reward": rewards[role][-1] if rewards[role] else 0.0,
         }

@@ -45,3 +45,10 @@ The result does not support stable co-evolution from this league mixture.
 
 The full checkpoint evaluations are preserved in
 `results/league_coevolution_seed23_20260928.json`.
+
+## 2026-09-28 — priority 2 test failure and fix
+
+The first workspace-dominant self-check failed because the helper passed a
+weight list as Python's `max` key function. The fix changed the selector to
+index the list through a lambda. No training result or live-state artifact was
+created by the failed check.
