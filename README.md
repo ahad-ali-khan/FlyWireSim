@@ -105,6 +105,14 @@ exact held-out episodes and telemetry are in
 The independent confirmation run is in
 [`results/biological_escape_vs_pure_rl_confirmatory_20260928.json`](results/biological_escape_vs_pure_rl_confirmatory_20260928.json).
 
+The biological arm was then rerun with a named 0.30-radian upward pitch target
+scaled by GF activity. It reached 22.0% (44/200) and 21.0% (42/200) on the two
+seed ranges, compared with the unchanged pure-RL control at 22.0% and 22.5%.
+The mean commanded bias was 0.00067 radians per tick in the first run and
+0.00703 radians per tick in the confirmation run, so the circuit rarely
+reached the full bias. These results are recorded as an arm-specific change,
+not a new headline result.
+
 Full audit, configurations, failed hypotheses, and limitations:
 [`results/repair_audit_20260927.md`](results/repair_audit_20260927.md)
 

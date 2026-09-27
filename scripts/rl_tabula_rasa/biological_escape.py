@@ -30,6 +30,7 @@ GIANT_FIBER_MEMBRANE_TAU = 0.005
 PHOTORECEPTOR_TO_LOOMING_GAIN = 2.8
 GIANT_FIBER_THRESHOLD = 0.72
 SPIKE_RATE_DECAY = 0.82
+PITCH_ESCAPE_BIAS_RADIANS = 0.30
 
 
 def _unit(vector: np.ndarray) -> np.ndarray:
@@ -127,7 +128,11 @@ class FlyWireEscapeCircuit:
         # gains and the small pitch bias are engineering choices, not
         # biological parameters measured from the connectome.
         escape_yaw = np.clip(2.0 * (left_gf_rate - right_gf_rate), -1, 1)
-        escape_pitch = np.clip(0.18 * escape_strength, -1, 1)
+        # The environment caps one tick at max_pitch_delta radians. Express
+        # the requested 0.30 rad escape bias in action units so it accumulates
+        # over several ticks without bypassing that physics limit.
+        pitch_bias_radians = PITCH_ESCAPE_BIAS_RADIANS * escape_strength
+        escape_pitch = np.clip(pitch_bias_radians / env.cfg["max_pitch_delta"], -1, 1)
         escape_thrust = np.clip(-0.15 + 1.9 * escape_strength, -1, 1)
 
         # When the GF is quiet, retain the existing flame attraction as the
@@ -155,9 +160,10 @@ class FlyWireEscapeCircuit:
             "giant_fiber_spike_train": giant_fiber_train,
             "lplc2_rate": self.lplc2_rate.astype(float).tolist(),
             "giant_fiber_rate": self.giant_fiber_rate.astype(float).tolist(),
+            "pitch_escape_bias_radians": pitch_bias_radians,
             "action_mapping": {
                 "yaw": "2*(left_gf_rate-right_gf_rate) + quiet_gf_flame_bias",
-                "pitch": "0.18*mean_gf_rate + quiet_gf_flame_bias",
+                "pitch": "clip(0.30 rad*mean_gf_rate / max_pitch_delta) + quiet_gf_flame_bias",
                 "thrust": "-0.15 + 1.9*mean_gf_rate + quiet_gf_flame_bias",
                 "note": "engineering readout; not directly measured biological motor weights",
             },

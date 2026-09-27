@@ -50,3 +50,5 @@ results/*
 !results/biological_escape_vs_pure_rl_confirmatory_20260928.json
 !results/league_coevolution_seed23_20260928.json
 !results/overnight_log.md
+!results/biological_escape_pitch_20260928.json
+!results/biological_escape_pitch_confirmatory_20260928.json

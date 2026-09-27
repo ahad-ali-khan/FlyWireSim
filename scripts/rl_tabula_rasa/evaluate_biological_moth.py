@@ -28,12 +28,14 @@ def evaluate_arm(bat, mode, moth_checkpoint, seeds, seed_start):
         circuit = FlyWireEscapeCircuit(seed=seed) if mode == "biological" else None
         brain_spikes = 0
         looming = []
+        pitch_bias = []
         while True:
             bat_action, _ = bat.predict(bat_policy_observation(raw), deterministic=True)
             if circuit is not None:
                 moth_action, state = circuit.action(env)
                 brain_spikes += int(sum(state["giant_fiber_spike_count"]))
                 looming.append(float(state["looming"]))
+                pitch_bias.append(float(state["pitch_escape_bias_radians"]))
             else:
                 moth_obs = legacy_moth_observation(env.observe("moth"))
                 moth_action, _ = moth.predict(moth_obs, deterministic=True)
@@ -60,6 +62,8 @@ def evaluate_arm(bat, mode, moth_checkpoint, seeds, seed_start):
                                      if mode == "biological" else None),
         "mean_looming": (float(np.mean([x["mean_looming"] for x in outcomes]))
                          if mode == "biological" else None),
+        "mean_pitch_escape_bias_radians": (float(np.mean(pitch_bias))
+                                            if mode == "biological" and pitch_bias else None),
         "episodes": outcomes,
     }
 

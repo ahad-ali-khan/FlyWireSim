@@ -104,3 +104,21 @@ biological circuit is a connectome-grounded microcircuit abstraction, not a
 whole-brain FlyWire simulation. Full per-hunt telemetry is preserved in
 `results/biological_escape_vs_pure_rl_20260928.json` and the confirmation run
 in `results/biological_escape_vs_pure_rl_confirmatory_20260928.json`.
+
+### Biological pitch-bias arm
+
+The biological circuit was rerun with a named 0.30-radian upward pitch target
+scaled by mean Giant Fibre activity. The bat checkpoint, pure-RL control moth,
+seed ranges, and evaluator were unchanged.
+
+| Seed range | Biological pitch arm | Pure-RL control | Mean commanded pitch bias |
+|---|---:|---:|---:|
+| 60000–60199 | 22.0% (44/200) | 22.0% (44/200) | 0.00067 radians/tick |
+| 60200–60399 | 21.0% (42/200) | 22.5% (45/200) | 0.00703 radians/tick |
+
+The earlier biological values on the same ranges were 17.5% and 16.0%.
+The pitch change therefore raised the biological arm by 4.5 and 5.0
+percentage points, while the pure-RL control remained unchanged. The mean
+commanded bias was far below 0.30 radians/tick because the GF circuit was
+usually quiet; the requested bias was a target scaled by activity, not a
+constant forced rotation.

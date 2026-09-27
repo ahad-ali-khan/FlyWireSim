@@ -52,3 +52,12 @@ The first workspace-dominant self-check failed because the helper passed a
 weight list as Python's `max` key function. The fix changed the selector to
 index the list through a lambda. No training result or live-state artifact was
 created by the failed check.
+
+## 2026-09-28 — priority 3 biological pitch result
+
+The biological moth was evaluated with a 0.30-radian upward pitch target
+scaled by Giant Fibre activity. On seeds `60000–60199`, catch rate changed
+from 17.5% (35/200) to 22.0% (44/200). On `60200–60399`, it changed from
+16.0% (32/200) to 21.0% (42/200). The pure-RL control remained at 22.0%
+(44/200) and 22.5% (45/200). Mean commanded pitch bias was 0.00067 and
+0.00703 radians/tick. The bat checkpoint was unchanged.
