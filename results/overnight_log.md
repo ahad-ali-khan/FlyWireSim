@@ -61,3 +61,13 @@ from 17.5% (35/200) to 22.0% (44/200). On `60200–60399`, it changed from
 16.0% (32/200) to 21.0% (42/200). The pure-RL control remained at 22.0%
 (44/200) and 22.5% (45/200). Mean commanded pitch bias was 0.00067 and
 0.00703 radians/tick. The bat checkpoint was unchanged.
+
+## 2026-09-28 — priority 4 paper draft
+
+The paper draft was written from the checked-in result JSONs and the verified
+experiment report. It includes the 39.5% mixed and 22.5% stationary curriculum
+results, the league regression, the biological comparison, and the pitch-arm
+comparison. Claims without a verified numeric source were omitted or marked as
+unverified. The draft passed the requested section-length, heading, banned-word,
+table, and figure-marker checks. No protected checkpoint or
+`results/benchmark.json` was modified.
