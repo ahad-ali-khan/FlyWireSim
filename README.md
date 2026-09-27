@@ -4,8 +4,9 @@ A 3D multi-agent pursuit environment where a bat learns to catch a moth using
 continuous-control reinforcement learning, biologically-inspired neural
 architecture, and physically consistent sonar sensing.
 
-**Best verified result:** 37% catch rate on 200 held-out hunts — 6.7× above a
-random baseline — using SAC with curriculum learning.
+**Best verified frozen-opponent result:** 39.5% catch rate on 200 held-out
+hunts. A dedicated stationary-target arm reaches 22.5%, and the best
+stationary-release co-evolution checkpoint reaches 26.5% on that diagnostic.
 
 ![Learning curve and held-out evaluation](results/repair_audit_20260927.png)
 
@@ -43,9 +44,18 @@ The bat trains against a frozen moth mixture: 50% learned, 30% random, and
 | Flat SAC · seed 23 · 30k steps | 17.5% | 3.5% |
 | Flat SAC · seed 42 · 30k steps | 34.5% | 5.5% |
 | Flat SAC · seed 7 · 30k steps | 25.5% | 6.0% |
-| **Flat SAC + curriculum · 60k steps** | **37.0%** | **8.0%** |
+| Flat SAC + stationary curriculum · 80k steps | **39.5%** | **22.5%** |
 | Deterministic pursuit reference | 41.5% | 14.5% |
 | Cognitive SAC · episode 400 | 16.0% | 0.5% |
+
+The 39.5%/22.5% row is one frozen-moth run evaluated against the standard
+50/30/20 learned/random/stationary mixture. The stationary-release
+co-evolution arm is a separate experiment: both SAC policies update from the
+same transition every episode, with the moth released from stationary-like
+actions over its first 200 episodes. Its best 500-episode checkpoint scored
+12.0% against its learned moth and 26.5% against a stationary moth. Continuing
+that run to 1,000 episodes regressed to 4.5% and 6.0%, so it is documented as
+an unstable research arm, not a headline result.
 
 Three standard SAC seeds average **25.8% ± 8.5 percentage points**. The
 curriculum result uses twice the training budget; its advantage reflects both
@@ -88,16 +98,39 @@ render of those same buffered frames for repository preview.
 
 ```bash
 uv run python -m scripts.rl_tabula_rasa.train_sac_control \
-  --steps 60000 --curriculum-steps 20000 --seed 23 \
+  --steps 80000 --curriculum-steps 60000 \
+  --curriculum-profile stationary --seed 23 \
   --moth-opponent-checkpoint \
     data/cognitive_swept_batched_seed23_1000ep_20260926.pt \
   --output results/my_run.json
 ```
 
-Resume with the same output stem and a larger `--steps` total. The verified
-37% checkpoint is in
-[`data/validated_sac37_20260927/`](data/validated_sac37_20260927/) with policy,
-critics, optimizer state, replay buffer, and SHA-256 manifest.
+Resume with the same output stem and a larger `--steps` total. The checked-in
+[`data/validated_sac37_20260927/`](data/validated_sac37_20260927/) directory is
+the earlier 37% mixed-curriculum checkpoint. The newer 39.5% stationary-
+curriculum checkpoint is in
+[`data/validated_sac39_20260928/`](data/validated_sac39_20260928/) with policy,
+critics, optimizer state, replay buffer, held-out evaluation, and SHA-256
+manifest. The two results use different curriculum profiles; the command
+above reproduces the newer profile.
+
+The co-evolution runner updates both policies on every shared transition and
+prints an auditable `self-play: bat step N, moth step N` line for every
+episode:
+
+```bash
+uv run python -m scripts.rl_tabula_rasa.train_coevolution_sac \
+  --episodes 1000 --seed 23 \
+  --bat-checkpoint \
+    data/validated_sac37_20260927/sac_curriculum_control_seed23_20260927.zip \
+  --moth-stationary-warmup 200 \
+  --output results/coevolution.json
+```
+
+Evaluate the saved pair on untouched layouts with
+`evaluate_coevolution_sac.py`. The generated model and replay files remain
+ignored because they are large; the tracked experiment report records the
+configuration and held-out outcomes.
 
 ## What is implemented
 
@@ -127,16 +160,19 @@ critics, optimizer state, replay buffer, and SHA-256 manifest.
 
 ## Honest limitations and next work
 
-- Bat-only learning against a frozen moth; no verified simultaneous co-evolution
-  result yet.
-- Stationary-target approach remains weak at 8% catch rate.
+- The current best mixed-opponent result comes from bat-only learning against a
+  frozen moth mixture; simultaneous co-evolution is implemented but remains
+  unstable after longer training.
+- Stationary-target capture improved substantially but is still below the
+  deterministic pursuit reference.
 - Recorded FlyWire/Brian2 spikes are a prerecorded signal, not live policy
   activity.
 - Rendering uses visual collision proxies, not exact animated-mesh physics.
 
-The next high-effort phase is to improve stationary capture, then train both
-agents with a properly audited co-evolution protocol. The connectome null result
-will remain in the report rather than being omitted.
+The high-effort experiments and their failed longer co-evolution continuation
+are recorded in
+[`results/high_effort_experiments_20260928.md`](results/high_effort_experiments_20260928.md).
+The connectome null result remains in the report rather than being omitted.
 
 ## FlyWire brain tooling
 

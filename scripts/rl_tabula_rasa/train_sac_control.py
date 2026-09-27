@@ -25,11 +25,12 @@ from .training_runtime import atomic_json
 
 
 class MixedOpponentEnv(HuntEnv):
-    def __init__(self, moth, seed, curriculum_steps=0):
+    def __init__(self, moth, seed, curriculum_steps=0, curriculum_profile="mixed"):
         super().__init__(config={"natural_environment": True, "obstacle_seed": seed})
         self.moth_policy = moth
         self.total_steps = 0
         self.curriculum_steps = curriculum_steps
+        self.curriculum_profile = curriculum_profile
 
     def reset(self, **kwargs):
         observation, info = super().reset(**kwargs)
@@ -37,7 +38,16 @@ class MixedOpponentEnv(HuntEnv):
         if self.total_steps < self.curriculum_steps:
             progress = self.total_steps / self.curriculum_steps
             difficulty = float(np.clip((progress - .25) / .75, 0, 1))
-            if self.np_random.random() > difficulty:
+            if self.curriculum_profile == "stationary":
+                stationary_progress = float(np.clip(progress / 0.6, 0, 1))
+                if self.np_random.random() > stationary_progress:
+                    self.opponent_mode = "stationary"
+                else:
+                    ramp = float(np.clip((progress - 0.6) / 0.4, 0, 1))
+                    self.opponent_mode = self.np_random.choice(
+                        ["learned", "random", "stationary"],
+                        p=[.5 * ramp, .3 * ramp, 1.0 - .8 * ramp])
+            elif self.np_random.random() > difficulty:
                 self.opponent_mode = "stationary"
             delta = self.moth.position - self.bat.position
             spread = .3 + (math.pi - .3) * difficulty
@@ -92,6 +102,7 @@ class AuditCallback(BaseCallback):
             cognitive_architecture=False, physics_version=PHYSICS_VERSION,
             seed=self.model.seed, environment_config=self.config, observation_frame="body",
             curriculum_steps=self.training_env.get_attr("curriculum_steps")[0],
+            curriculum_profile=self.training_env.get_attr("curriculum_profile")[0],
             total_steps=self.num_timesteps, status=status,
             resume_boundary="new episode; policy, critics, optimizers, entropy and replay retained",
             episodes=self.episodes, evaluations=self.evaluations)
@@ -143,6 +154,7 @@ def main():
     parser.add_argument("--steps", type=int, default=30000)
     parser.add_argument("--seed", type=int, default=23)
     parser.add_argument("--curriculum-steps", type=int, default=0)
+    parser.add_argument("--curriculum-profile", choices=("mixed", "stationary"), default="mixed")
     parser.add_argument("--resume", action="store_true", help="continue to --steps total transitions")
     parser.add_argument("--moth-opponent-checkpoint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -154,7 +166,7 @@ def main():
     torch.set_num_threads(1)
     moth = CognitiveActorCritic("moth", 23).eval()
     moth.load_state_dict(torch.load(args.moth_opponent_checkpoint, map_location="cpu", weights_only=False)["models"]["moth"])
-    env = MixedOpponentEnv(moth, args.seed, args.curriculum_steps)
+    env = MixedOpponentEnv(moth, args.seed, args.curriculum_steps, args.curriculum_profile)
     config = env.cfg.copy()
     previous = None
     if args.resume:
@@ -162,7 +174,8 @@ def main():
         previous = json.loads((manifest if manifest.exists() else args.output).read_text())
         if (previous["seed"] != args.seed or previous["environment_config"] != config or
                 previous["physics_version"] != PHYSICS_VERSION or
-                previous.get("curriculum_steps", 0) != args.curriculum_steps):
+                previous.get("curriculum_steps", 0) != args.curriculum_steps or
+                previous.get("curriculum_profile", "mixed") != args.curriculum_profile):
             parser.error("resume configuration differs from the saved experiment")
         model = SAC.load(args.output.with_suffix(".zip"), env=env, device="cpu")
         model.load_replay_buffer(args.output.with_suffix(".replay.pkl"))
