@@ -1,424 +1,162 @@
-# Emulation of the *Drosophila Fly* Brain
+# FlyWireSim
 
-Whole-brain leaky integrate-and-fire model of the adult fruit fly, built from the
-[FlyWire](https://flywire.ai/) connectome (~138k neurons, ~5M synapses).
-Activate and silence arbitrary neurons; observe downstream spike propagation.
+A 3D multi-agent pursuit environment where a bat learns to catch a moth using
+continuous-control reinforcement learning, biologically-inspired neural
+architecture, and physically consistent sonar sensing.
 
-Based on the paper
-[*A leaky integrate-and-fire computational model based on the connectome of the
-entire adult Drosophila brain reveals insights into sensorimotor processing*](https://www.biorxiv.org/content/10.1101/2023.05.02.539144v1)
-(Shiu et al.).
+**Best verified result:** 37% catch rate on 200 held-out hunts — 6.7× above a
+random baseline — using SAC with curriculum learning.
 
-## Usage
+![Learning curve and held-out evaluation](results/repair_audit_20260927.png)
 
-With this computational model, one can manipulate the neural activity of a set of _Drosophila_ neurons.
-The output of the model is the spike times and rates of all affected neurons.
+![Blender wide render](results/blender_scene_render_wide.png)
 
-Two types of manipulations are currently implemented:
-- *Activation*:
-Neurons can be activated at a fixed frequency to model optogenetic activation.
-This triggers Poisson spiking in the target neurons. 
-Two sets of neurons with distinct frequencies can be defined.
-- *Silencing*:
-In addition to activation, a different set of neurons can be silenced to model optogenetic silencing.
-This sets all synaptic connections to and from those neurons to zero.
+![Blender close render](results/blender_scene_render_hero.png)
 
-The entrypoint is [main.py](main.py), which parses CLI arguments and calls
-[code/benchmark.py](code/benchmark.py) -- the central orchestrator that dispatches
-to framework-specific runners:
-[run_brian2_cuda.py](code/run_brian2_cuda.py),
-[run_pytorch.py](code/run_pytorch.py),
-[run_nestgpu.py](code/run_nestgpu.py), and
-[run_genn.py](code/run_genn.py). The optional Brian2GeNN backend lives in
-[run_brian2_genn.py](code/run_brian2_genn.py) and uses a separate conda
-environment because Brian2GeNN 1.7.0 pins Brian2<2.6 while Brian2CUDA uses
-Brian2 2.8.0.
+[▶ Watch the 65-second buffered Blender demo](results/flywiresim_buffered_demo_65s.gif)
 
-```bash
-# Run the 5 main-environment frameworks with default durations (0.1s–1000s)
-# and trials (1,4,8,16,32)
-python main.py
+## What makes this interesting
 
-# Specific durations and trial count
-python main.py --t_run 0.1 1 10 --n_run 1
+- **Custom 3D physics environment** — continuous flight, terrain, obstacles,
+  boundary forces, moth flame-attraction, and randomized spawns.
+- **Swept jaw collision detection** — jaw and moth paths are checked as moving
+  bodies each tick; catches record the exact contact fraction and impact point.
+  This found and fixed a bug where endpoint-only detection missed 35% of real
+  contacts.
+- **Biologically-inspired cognitive architecture** — sensory,
+  proprioception, self-model, and belief specialists compete for a shared
+  64-value workspace through a learned softmax gate. The recurrent state tracks
+  occluded opponents. This architecture is preserved as an experimental arm.
+- **Rigorous evaluation** — every headline result uses 200 untouched held-out
+  seeds with new spawns and obstacle layouts.
+- **Blender demo** — 30 consecutive unselected hunts with textured rigged
+  models, sonar visualization, near-miss slow motion, and telemetry HUD.
 
-# Single framework
-python main.py --nestgpu --t_run 1 --n_run 1
-python main.py --genn --t_run 1 --n_run 1
-python main.py --brian2genn --t_run 1 --n_run 1
+## Results
 
-# Combine frameworks
-python main.py --brian2-cpu --pytorch --t_run 0.1 1 --n_run 1 4 8 16 32
+The bat trains against a frozen moth mixture: 50% learned, 30% random, and
+20% stationary. The table below uses 200 held-out seeds.
 
-# Five-round Nature-paper benchmark suite
-# Uses the March grid: t_run=(0.1,1,10,100), n_run=(1,4,8,16,32), 5 core backends
-python main.py --paper --run-label nature_2026_07
+| Policy | Mixed opponents | Stationary moth |
+|---|---:|---:|
+| Random actions | 5.5% | 0.5% |
+| Flat SAC · seed 23 · 30k steps | 17.5% | 3.5% |
+| Flat SAC · seed 42 · 30k steps | 34.5% | 5.5% |
+| Flat SAC · seed 7 · 30k steps | 25.5% | 6.0% |
+| **Flat SAC + curriculum · 60k steps** | **37.0%** | **8.0%** |
+| Deterministic pursuit reference | 41.5% | 14.5% |
+| Cognitive SAC · episode 400 | 16.0% | 0.5% |
 
-# Add Brian2GeNN as the 6th framework from the brain-fly-brian2genn environment
-python main.py --brian2genn --paper --run-label nature_2026_07
-```
+Three standard SAC seeds average **25.8% ± 8.5 percentage points**. The
+curriculum result uses twice the training budget; its advantage reflects both
+curriculum and budget. Deterministic pursuit is an omniscient reference
+controller, not a theoretical upper bound.
 
-Results are incrementally saved to `data/benchmark-results.csv` as each
-benchmark completes, with separate columns for setup time (loading, compilation)
-and simulation time (the always-on cost). For repeated paper runs, the CSV keeps
-the original March rows and appends new rows keyed by `run_label` and `round`;
-the corresponding spike parquet path is recorded in `spike_path`.
+The cognitive architecture peaked at 16% then regressed to 2%; it is preserved
+and documented but not used for the demo. Connectome seeding also produced no
+measurable advantage in the available comparison: 99.6% versus 99.4% moth
+survival on the same 500-hunt held-out arm, a one-episode difference.
 
-Spike timing exports are written to parquet outside the timed simulation section
-so file I/O does not contaminate `sim_time`. GeNN additionally flushes bounded
-on-device spike-recording windows during long batched runs; that transfer time
-is tracked as result collection rather than simulation time. A labeled paper run
-writes partitioned outputs like:
+Full audit, configurations, failed hypotheses, and limitations:
+[`results/repair_audit_20260927.md`](results/repair_audit_20260927.md)
 
-```text
-data/results/nature_2026_07/
-├── manifest.csv
-├── checksums.sha256
-├── round_01/
-│   ├── brian2cpp_t1.0s_n1.parquet
-│   ├── brian2cuda_t1.0s_n1.parquet
-│   ├── pytorch_t1.0s_n1.parquet
-│   ├── nestgpu_t1.0s_n1.parquet
-│   ├── genn_t1.0s_n1.parquet
-│   └── brian2genn_t1.0s_n1.parquet
-└── round_02/
-```
-
-The consolidated publication bundle contains 600 spike parquet files: 20 grid
-points for each of six frameworks across five rounds. The `no_io/` subfolder
-contains the corresponding one-round, 120-row timing dataset collected with
-spike probing and output disabled; it intentionally contains no spike parquet
-files.
-
-Each spike parquet has one row per spike. The canonical timing column for new
-exports is `time_ms`, with `trial`, `neuron_index`, `flywire_id`, and `exp_name`.
-The legacy `t` column is kept for existing analysis scripts.
-
-The full `nature_2026_07` spike parquet bundle is too large for regular Git
-tracking, so parquet files are intentionally gitignored. The committed metadata
-files are `manifest.csv` and `checksums.sha256`; the full bundle is stored in
-Google Drive:
-
-https://drive.google.com/drive/folders/1jiSfb5lNfm9gwP0YyyRz5ATIrDpBAcjs
-
-After downloading the Drive folder into `data/results/nature_2026_07/`, verify
-the bundle with:
+## Quick start
 
 ```bash
-cd data/results/nature_2026_07
-sha256sum -c checksums.sha256
+uv sync
+uv run python -m scripts.rl_tabula_rasa.test_env
+uv run python -m scripts.rl_tabula_rasa.test_sac
 ```
 
-### Ground truth comparison
-
-Brian2 (CPU) serves as the ground truth for neural accuracy: it implements the
-canonical LIF model from
-[Shiu et al. (Nature 2024)](https://www.nature.com/articles/s41586-024-07763-9),
-which achieved 91% prediction accuracy against experimental _Drosophila_ data.
-Each backend also saves per-neuron spike trains to `data/results/`, and a
-comparison script measures how closely the other backends reproduce Brian2's
-output:
+Run the buffered Blender playback:
 
 ```bash
-python code/compare_ground_truth.py                  # default: t_run=1s, n_run=1
-python code/compare_ground_truth.py --t_run 10 --n_run 4   # longer / averaged
-python code/compare_ground_truth.py --run-label nature_2026_07 --round 1
+uv run python scripts/viewer.py --mode live \
+  --live-stream-file data/validated_sac_demo_20260927.jsonl \
+  --live-state-file data/validated_sac_demo_20260927.state.json \
+  --learning-curve data/validated_sac_demo_20260927.curve.json \
+  --speed 0.5 --camera chase
 ```
 
-This computes active-neuron overlap (Jaccard), per-neuron firing-rate
-correlation, and spike-count ratios, and writes structured results to
-`data/ground-truth-comparison.json`.
+This playback contains 30 consecutive hunts: 11 catches and 19 timeouts. It
+does not update the networks. The HUD identifies frozen evaluation and shows
+episode state, jaw-contact outcomes, near-misses, occlusion, sonar/vision
+indicators, and the learning curve. The GIF is a low-resolution 65-second
+render of those same buffered frames for repository preview.
 
-For all-framework pairwise comparisons, including firing-rate parity rows and
-spike-time matches within a tolerance window, use:
+## Reproduce training
 
 ```bash
-python code/compare_spike_outputs.py \
-  --run-label nature_2026_07 \
-  --round 1 \
-  --output-dir data/results/nature_2026_07/comparisons
+uv run python -m scripts.rl_tabula_rasa.train_sac_control \
+  --steps 60000 --curriculum-steps 20000 --seed 23 \
+  --moth-opponent-checkpoint \
+    data/cognitive_swept_batched_seed23_1000ep_20260926.pt \
+  --output results/my_run.json
 ```
 
-This writes `pairwise_summary.csv`, `pairwise_summary.json`,
-`parity_rates.csv`, and `missing_inputs.json`. The pairwise summary has one row
-per framework pair and `t_run`/`n_run` combination.
+Resume with the same output stem and a larger `--steps` total. The verified
+37% checkpoint is in
+[`data/validated_sac37_20260927/`](data/validated_sac37_20260927/) with policy,
+critics, optimizer state, replay buffer, and SHA-256 manifest.
 
-For paper-support parity files comparing one backend against Brian2 CPU across
-all five labeled rounds, use:
+## What is implemented
+
+- Continuous bat control with body-frame sonar observations and SAC.
+- Randomized spawn positions, seeded natural-environment obstacles, terrain,
+  boundary forces, and moth attraction to a warm flame.
+- Synchronous swept jaw collision with recorded contact fraction and impact
+  point; jaw and moth must be within 0.16 m at the same time.
+- Animated, textured bat and moth Blender assets with actual animation clips.
+- Bat sonar, moth vision, flame attraction, readable decision HUD, contact dot,
+  near-miss slow motion, and buffered JSONL playback.
+- Recurrent four-specialist cognitive architecture with sensory,
+  proprioception, self-model, and belief heads.
+- FlyWire-derived connectome seeding for moth initialization, evaluated as a
+  null result rather than presented as a biological advantage.
+
+## Engineering fixes
+
+- Replaced independent path-segment intersection with synchronous relative
+  motion, eliminating false catches from paths crossing at different times.
+- Applied the `dt=0.16` unit conversion consistently to bat, moth, and boundary
+  dynamics; equivalence tests preserve the intended flight envelope.
+- Replaced reward farming from repeated heading/thrust bonuses with discounted
+  potential shaping whose terminal value is zero.
+- Repaired recurrent SAC replay so critic and actor unrolls preserve episode
+  history and resume restores replay, optimizers, temperature, and RNG state.
+
+## Honest limitations and next work
+
+- Bat-only learning against a frozen moth; no verified simultaneous co-evolution
+  result yet.
+- Stationary-target approach remains weak at 8% catch rate.
+- Recorded FlyWire/Brian2 spikes are a prerecorded signal, not live policy
+  activity.
+- Rendering uses visual collision proxies, not exact animated-mesh physics.
+
+The next high-effort phase is to improve stationary capture, then train both
+agents with a properly audited co-evolution protocol. The connectome null result
+will remain in the report rather than being omitted.
+
+## FlyWire brain tooling
 
 ```bash
-python code/compare_backend_to_brian2.py \
-  --run-label nature_2026_07 \
-  --backend brian2genn \
-  --output-dir data/results/nature_2026_07/comparisons
+uv run flywiresim --t-run 0.1 --experiment sugar
+uv run python scripts/export_brain_signal.py
+/Applications/Blender.app/Contents/MacOS/Blender \
+  --factory-startup --python scripts/blender_world.py
 ```
 
-This writes `<backend>_vs_brian2_rate_summary.csv/json`,
-`<backend>_vs_brian2_rate_parity.csv`, and
-`<backend>_vs_brian2_missing_inputs.json`. Add `--include-timing` only for
-smaller targeted checks where greedy spike-time matching is scientifically
-useful and computationally reasonable.
+## Credits and licenses
 
-## Installation
+Built on [FlyWire/fly-brain](https://github.com/eonsystemspbc/fly-brain),
+licensed GPL-2.0 like the upstream project.
 
-### Conda environment
+- Vampire bat model: rubberduck, CC0 —
+  [OpenGameArt](https://opengameart.org/content/vampire-bat-animated)
+- Moth model: Amatsukast, CC BY-NC-SA 4.0 —
+  [Sketchfab](https://sketchfab.com/3d-models/moth-fafcd79b60964e57a532e74706af6d16)
 
-The `brain-fly` conda environment provides everything needed to run the
-**Brian2**, **Brian2CUDA**, **PyTorch**, **NEST GPU**, and **GeNN** backends
-(including CUDA-enabled PyTorch and PyGeNN):
-
-```bash
-conda env create -f environment.yml
-conda activate brain-fly
-```
-
-On Ubuntu/WSL, PyGeNN's source build also needs the system `pkg-config` binary
-and libffi headers:
-
-```bash
-sudo apt-get install -y pkg-config libffi-dev
-```
-
-### GeNN
-
-The `--genn` backend uses PyGeNN 5.4.0 with the CUDA backend. It implements
-Brian2-style Poisson activation into membrane voltage, delayed sparse recurrent
-synapses, GeNN batching for `n_run`, and the same parquet spike schema as the
-other benchmark runners.
-
-Large batched GeNN runs cap the on-device spike recording buffer with
-`GENN_RECORDING_WINDOW_MAX_SLOTS` (default: `800000`). This preserves full spike
-timing exports while avoiding CUDA out-of-memory errors for large
-`n_run * t_run` combinations.
-
-If PyGeNN was not installed when the conda environment was created, install it
-inside `brain-fly` with:
-
-```bash
-export CUDA_PATH=/usr/local/cuda-12.5
-export CUDA_HOME=$CUDA_PATH
-export PATH=$CUDA_PATH/bin:$PATH
-pip install https://github.com/genn-team/genn/archive/refs/tags/5.4.0.zip
-```
-
-### Brian2GeNN
-
-The `--brian2genn` backend uses Brian2GeNN 1.7.0 as a Brian2 standalone device
-targeting GeNN/CUDA. It is intentionally isolated from the main `brain-fly`
-environment because Brian2GeNN pins Brian2<2.6, which conflicts with
-Brian2CUDA's Brian2 2.8.0 requirement.
-
-Create the environment with:
-
-```bash
-conda env create -f environment-brian2genn.yml
-conda activate brain-fly-brian2genn
-```
-
-Brian2GeNN 1.7.0 expects GeNN 4.x command-line scripts such as
-`genn-buildmodel.sh`. If they are not already installed, place GeNN 4.9.0 at
-`~/.local/src/genn-4.9.0` or set `BRIAN2GENN_GENN_PATH`/`GENN_PATH` to your
-GeNN 4.x source tree:
-
-```bash
-export CUDA_PATH=/usr/local/cuda-12.5
-export CUDA_HOME=$CUDA_PATH
-export BRIAN2GENN_GENN_PATH=$HOME/.local/src/genn-4.9.0
-export GENN_PATH=$BRIAN2GENN_GENN_PATH
-export PATH=$GENN_PATH/bin:$CUDA_PATH/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_PATH/lib64:$LD_LIBRARY_PATH
-```
-
-For scientific comparability, the Brian2GeNN runner exports the same per-spike
-parquet schema as the other backends and uses the same upstream Poisson drive.
-Brian2GeNN cannot run this model's independent trials as a true GeNN batch in
-the way the direct `--genn` backend can, so `n_run>1` is implemented as
-independent build/run trials with deterministic per-trial C RNG seeds. The
-`sim_time` column records GeNN executable time; `build_time` records the
-Brian2GeNN code generation/compilation overhead.
-
-### NEST GPU
-
-NEST GPU requires a separate build from source with a custom neuron model
-(`user_m1`). This is only needed if you want to use the `--nestgpu` backend.
-
-**Prerequisites:**
-
-- **NVIDIA CUDA Toolkit** (12.x) — follow the
-  [official installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/).
-- **CMake** — `sudo apt install cmake` (or see
-  [cmake.org](https://cmake.org/download/)).
-
-**Steps:**
-
-1. Clone NEST GPU:
-
-```bash
-git clone https://github.com/nest/nest-gpu
-```
-
-2. Copy the custom source files into the NEST GPU tree. You must replace `/path/to/nest-gpu` with your own local path:
-
-```bash
-cp scripts/nestgpu_source_files/src/user_m1.{h,cu}    /path/to/nest-gpu/src/
-cp scripts/nestgpu_source_files/pythonlib/nestgpu.py   /path/to/nest-gpu/pythonlib/
-```
-
-   The patched `nestgpu.py` fixes weight array initialization (lines 2225-2227).
-
-3. Build and install (set `-DCMAKE_CUDA_ARCHITECTURES` to match your GPU, e.g.
-   `89` for RTX 4070):
-
-```bash
-cmake -DCMAKE_CUDA_ARCHITECTURES=89 \
-      -DCMAKE_INSTALL_PREFIX=$HOME/.nest-gpu-build \
-      /path/to/nest-gpu
-make -j$(nproc) && make install
-```
-
-For a full setup from a fresh Windows machine (WSL2 + CUDA + Miniconda), see
-[scripts/setup_WSL_CUDA.sh](scripts/setup_WSL_CUDA.sh).
-
-----
-
-## Frameworks
-
-| Framework | Backend | Status |
-|---|---|---|
-| **Brian2** | C++ standalone (multi-core CPU) | ready |
-| **Brian2CUDA** | CUDA standalone (GPU) | ready |
-| **PyTorch** | CUDA (GPU) | ready |
-| **NEST GPU** | CUDA (GPU, custom `user_m1` neuron) | ready |
-| **GeNN** | CUDA (GPU, PyGeNN 5.4.0) | ready |
-| **Brian2GeNN** | Brian2GeNN 1.7.0 / GeNN CUDA | ready, separate env |
-
-All six frameworks share the same data, model parameters, spike-output schema,
-and folder structure. The five main backends run from `brain-fly` plus a
-system-level NEST GPU install; Brian2GeNN runs from `brain-fly-brian2genn`
-because of its Brian2 version pin.
-
-## Quickstart
-
-```bash
-# Create the conda environment (includes CUDA-enabled PyTorch)
-conda env create -f environment.yml
-conda activate brain-fly
-
-# Run a 1-second benchmark on the five main-environment backends
-python main.py --t_run 1 --n_run 1 --no_log_file
-
-# Specific backends (combinable)
-python main.py --brian2-cpu                    # Brian2 CPU only
-python main.py --brian2cuda-gpu               # Brian2CUDA GPU only
-python main.py --pytorch                      # PyTorch only
-python main.py --nestgpu                      # NEST GPU only
-python main.py --genn                         # GeNN only
-python main.py --brian2genn                   # Brian2GeNN only, from brain-fly-brian2genn
-python main.py --pytorch --genn               # PyTorch + GeNN
-
-# Full benchmark suite (all durations, n_run=1,4,8,16,32, five main backends)
-python main.py
-
-# Nature-paper suite: five main backends, March parameter grid, 5 rounds
-python main.py --paper --run-label nature_2026_07
-
-# Brian2GeNN Nature-paper add-on from the separate brain-fly-brian2genn env
-python main.py --brian2genn --paper --run-label nature_2026_07
-```
-
-### `main.py` options
-
-| Flag | Description |
-|---|---|
-| *(default)* | Run all: Brian2 (CPU) → Brian2CUDA (GPU) → PyTorch → NEST GPU → GeNN |
-| `--brian2-cpu` | Brian2 C++ standalone (CPU) only |
-| `--brian2cuda-gpu` | Brian2CUDA (GPU) only |
-| `--pytorch` | PyTorch (GPU/CPU) only |
-| `--nestgpu` | NEST GPU only |
-| `--genn` | GeNN CUDA backend only |
-| `--brian2genn` | Brian2GeNN backend only; use the `brain-fly-brian2genn` environment |
-| `--t_run` | Simulation duration(s) in seconds, e.g. `--t_run 0.1 1 10` |
-| `--n_run` | Number of independent trials, e.g. `--n_run 1 4 8 16 32` |
-| `--paper` | Run the paper suite: `t_run=[0.1,1,10,100]`, `n_run=[1,4,8,16,32]`, 5 rounds |
-| `--rounds` | Repeat the full selected backend/parameter suite N times |
-| `--round-start` | First round number to write, useful for resuming a labeled run |
-| `--run-label` | Group repeated spike outputs under `data/results/<label>/` and append labeled CSV rows |
-| `--log_file FILE` | Write log to file (default: `data/results/benchmarks.log`) |
-| `--no_log_file` | Console output only |
-
-Backend flags are combinable: `--brian2-cpu --pytorch` runs Brian2 CPU then PyTorch.
-
-## Project structure
-
-```
-fly-brain/
-├── main.py                     # Entrypoint (benchmark runner CLI)
-├── environment.yml             # Conda env definition (brain-fly)
-├── environment-brian2genn.yml  # Separate Brian2GeNN env definition
-├── code/
-│   ├── benchmark.py            # Orchestrator: config, logging, dispatcher
-│   ├── run_brian2_cuda.py      # Brian2 / Brian2CUDA benchmark runner
-│   ├── run_pytorch.py          # PyTorch benchmark runner (model + utils)
-│   ├── run_nestgpu.py          # NEST GPU benchmark runner (subprocess per trial)
-│   ├── run_genn.py             # GeNN/PyGeNN benchmark runner
-│   ├── compare_ground_truth.py # Compare backends against Brian2 (CPU) ground truth
-│   └── paper-brian2/           # Original paper code (not used by benchmarks)
-│       ├── model.py            # Core LIF network model (Brian2)
-│       ├── utils.py            # Analysis helpers (load_exps, get_rate)
-│       ├── example.ipynb       # Tutorial: activation, silencing, rate analysis
-│       └── figures.ipynb       # Reproduce paper figures (uses archive 630 data)
-├── data/
-│   ├── 2025_Completeness_783.csv       # Neuron list (FlyWire v783)
-│   ├── 2025_Connectivity_783.parquet   # Synapse connectivity (FlyWire v783)
-│   ├── benchmark-results.csv           # Accumulated benchmark timings
-│   ├── ground-truth-comparison.json   # Backend accuracy vs Brian2 (CPU)
-│   ├── sez_neurons.pickle              # SEZ neuron subset (for figures)
-│   ├── weight_coo.pkl                  # Cached sparse weights COO (gitignored)
-│   ├── weight_csr.pkl                  # Cached sparse weights CSR (gitignored)
-│   ├── archive/
-│   │   ├── 2023_Completeness_630.csv   # Legacy v630 data
-│   │   └── 2023_Connectivity_630.parquet
-└── scripts/
-    └── setup_WSL_CUDA.sh       # WSL2 + CUDA + Miniconda setup
-```
-
-## Data
-
-The model uses FlyWire connectome data version **783** (public release).
-Legacy version 630 data is kept in `data/archive/` for paper figure reproduction.
-
-| File | Description | Size |
-|---|---|---|
-| `2025_Completeness_783.csv` | Neuron IDs and metadata | 3.2 MB |
-| `2025_Connectivity_783.parquet` | Pre/post-synaptic indices + weights | 97 MB |
-| `weight_coo.pkl` | Sparse weight matrix (COO), auto-generated by PyTorch | ~288 MB |
-| `weight_csr.pkl` | Sparse weight matrix (CSR), auto-generated by PyTorch | ~289 MB |
-
-## Architecture per framework
-
-| | Brian2 / Brian2CUDA | PyTorch | NEST GPU |
-|---|---|---|---|
-| Build step | C++ / CUDA codegen + compile | None (eager mode) | None |
-| Trial parallelism | Sequential (`device.run`) | Batched (`batch_size=n_run`) | Subprocess per trial (cannot reset in-process) |
-| Weight format | Brian2 `Synapses` object | Sparse CSR tensor | Array-based `Connect` |
-| Neuron model | Brian2 equations | Custom `nn.Module` classes | Custom CUDA kernel (`user_m1`) |
-| Timestep | 0.1 ms | 0.1 ms | 0.1 ms |
-
-## System requirements
-
-- Linux (tested on Ubuntu 22.04 under WSL2 on Windows 11)
-- NVIDIA GPU with CUDA 12.x (tested on RTX 4070)
-- Miniconda / Anaconda
-- NEST GPU compiled from source (for `--nestgpu` backend)
-- `scripts/setup_WSL_CUDA.sh` documents the full setup from a fresh Windows machine
-
-## License
-
-Except where otherwise noted, this project is licensed under the GNU General
-Public License version 2 or any later version
-(`GPL-2.0-or-later`). See [LICENSE](LICENSE).
-
-Third-party components retain their original notices. In particular, the
-Shiu et al. Brian2 materials in `code/paper-phil-drosophila/` remain available
-under their upstream [MIT License](code/paper-phil-drosophila/LICENSE), and the
-adapted NEST GPU model files retain their GPL-2.0-or-later notices.
+See [`assets/models/creatures/CREDITS.md`](assets/models/creatures/CREDITS.md)
+for full attribution. The moth's non-commercial/share-alike terms apply
+separately from the upstream code license.

@@ -16,3 +16,32 @@ data/results/nature_2026_07/archive*
 # PyTorch cached weight matrices (generated from connectivity data)
 data/weight_coo.pkl
 data/weight_csr.pkl
+data/flywire_annotations_v783.tsv
+data/brain_signal.json
+data/live_state_stream.jsonl
+data/learning_state.json
+data/learning_state_pre_escape.json
+data/learning_state_tactics.json
+data/learning_state_coevolution.json
+
+# FlyWireSim local experiment outputs. Curated reproducibility artifacts are
+# explicitly re-included below; do not commit an entire training workspace.
+data/*.pt
+data/*.json
+data/*.jsonl
+data/*.log
+data/*.pid
+results/*
+
+!data/cognitive_swept_batched_seed23_1000ep_20260926.pt
+!data/validated_sac_demo_20260927.curve.json
+!data/validated_sac_demo_20260927.jsonl
+!data/validated_sac_demo_20260927.manifest.json
+!data/validated_sac_demo_20260927.state.json
+
+!results/repair_audit_20260927.md
+!results/repair_audit_20260927.json
+!results/repair_audit_20260927.png
+!results/blender_scene_render_wide.png
+!results/blender_scene_render_hero.png
+!results/flywiresim_buffered_demo_65s.gif
