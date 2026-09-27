@@ -28,6 +28,11 @@ stationary-release co-evolution checkpoint reaches 26.5% on that diagnostic.
   proprioception, self-model, and belief specialists compete for a shared
   64-value workspace through a learned softmax gate. The recurrent state tracks
   occluded opponents. This architecture is preserved as an experimental arm.
+- **Connectome-grounded escape arm** — a live bilateral LPLC2 → DNp01/Giant
+  Fibre microcircuit converts angular-size expansion into 5 ms substep spike
+  trains, then maps asymmetric firing to moth turn and total firing to thrust.
+  This is a small causal circuit grounded in the checked-in v783 edge table,
+  not a claim to simulate the entire fly brain.
 - **Rigorous evaluation** — every headline result uses 200 untouched held-out
   seeds with new spawns and obstacle layouts.
 - **Blender demo** — 30 consecutive unselected hunts with textured rigged
@@ -66,6 +71,39 @@ The cognitive architecture peaked at 16% then regressed to 2%; it is preserved
 and documented but not used for the demo. Connectome seeding also produced no
 measurable advantage in the available comparison: 99.6% versus 99.4% moth
 survival on the same 500-hunt held-out arm, a one-episode difference.
+
+### Frozen-bat biological escape comparison
+
+To isolate the moth-controller effect, the strongest validated bat checkpoint
+(`data/validated_sac39_20260928/`) was frozen and evaluated against the same
+200 held-out layouts in both arms:
+
+| Fixed bat checkpoint | Moth controller | Catch rate |
+|---|---|---:|
+| Stationary-curriculum SAC | Biological LPLC2 → DNp01/GF escape circuit | 17.5% (35/200) |
+| Stationary-curriculum SAC | Pure-RL moth checkpoint | 22.0% (44/200) |
+
+Precisely: a bat trained to 39.5% catch rate against frozen opponents caught
+the biological escape circuit moth on 35/200 held-out hunts, versus 44/200 for
+the pure-RL moth — a 4.5 percentage-point reduction in catch rate. The
+biological circuit was not trained on this environment; it uses three
+connectome-verified LPLC2 → DNp01/GF synapses and produced 47.49 GF spikes per
+hunt on average.
+
+A second 200-seed holdout gave 16.0% (32/200) biological versus 22.5% (45/200)
+pure-RL. Pooled across both seed ranges, the rates are 16.75% (67/400) and
+22.25% (89/400). The first-run Wilson 95% intervals are approximately
+12.9–23.4% and 16.8–28.2%; with this sample size, the 4.5-point gap is a
+promising first comparison, not a definitive superiority claim.
+
+The RL moth was trained against a specific bat, while the biological moth is a
+fixed controller that never trained in this arena. Some of the gap may
+therefore reflect bat overfitting to the RL moth's patterns and unfamiliarity
+with the biological controller, rather than better biological evasion. The
+exact held-out episodes and telemetry are in
+[`results/biological_escape_vs_pure_rl_20260928.json`](results/biological_escape_vs_pure_rl_20260928.json).
+The independent confirmation run is in
+[`results/biological_escape_vs_pure_rl_confirmatory_20260928.json`](results/biological_escape_vs_pure_rl_confirmatory_20260928.json).
 
 Full audit, configurations, failed hypotheses, and limitations:
 [`results/repair_audit_20260927.md`](results/repair_audit_20260927.md)
@@ -132,6 +170,17 @@ Evaluate the saved pair on untouched layouts with
 ignored because they are large; the tracked experiment report records the
 configuration and held-out outcomes.
 
+Run the frozen-bat biological comparison:
+
+```bash
+uv run python -m scripts.rl_tabula_rasa.evaluate_biological_moth \
+  --biological-bat data/validated_sac39_20260928/sac_stationary_curriculum_seed23_20260927.zip \
+  --pure-rl-bat data/validated_sac39_20260928/sac_stationary_curriculum_seed23_20260927.zip \
+  --pure-rl-moth data/validated_coevolution_stationary_release_20260928/coevolution_curriculum_sac_seed23_best500_20260928.moth.zip \
+  --seeds 200 --seed-start 60000 \
+  --output results/biological_escape_vs_pure_rl_20260928.json
+```
+
 ## What is implemented
 
 - Continuous bat control with body-frame sonar observations and SAC.
@@ -146,6 +195,8 @@ configuration and held-out outcomes.
   proprioception, self-model, and belief heads.
 - FlyWire-derived connectome seeding for moth initialization, evaluated as a
   null result rather than presented as a biological advantage.
+- Connectome-grounded looming escape microcircuit with bilateral LPLC2/GF
+  spike-train telemetry and a matched biological-vs-pure-RL evaluation arm.
 
 ## Engineering fixes
 
@@ -167,6 +218,10 @@ configuration and held-out outcomes.
   deterministic pursuit reference.
 - Recorded FlyWire/Brian2 spikes are a prerecorded signal, not live policy
   activity.
+- The new biological escape arm is a normalized, two-column LIF abstraction
+  grounded by an LPLC2 → DNp01/Giant Fibre edge; its visual proxy, synaptic
+  gain, motor gains, and pitch bias are engineering choices. It is not a full
+  FlyWire brain simulation.
 - Rendering uses visual collision proxies, not exact animated-mesh physics.
 
 The high-effort experiments and their failed longer co-evolution continuation

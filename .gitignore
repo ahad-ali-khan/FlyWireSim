@@ -46,3 +46,5 @@ results/*
 !results/blender_scene_render_hero.png
 !results/flywiresim_buffered_demo_65s.gif
 !results/high_effort_experiments_20260928.md
+!results/biological_escape_vs_pure_rl_20260928.json
+!results/biological_escape_vs_pure_rl_confirmatory_20260928.json
