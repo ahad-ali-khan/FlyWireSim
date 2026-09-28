@@ -71,3 +71,11 @@ comparison. Claims without a verified numeric source were omitted or marked as
 unverified. The draft passed the requested section-length, heading, banned-word,
 table, and figure-marker checks. No protected checkpoint or
 `results/benchmark.json` was modified.
+
+## 2026-09-28 — abstract framing revision
+
+The paper abstract was revised to lead with the matched-performance result:
+21.5% biological catch rate versus 22.25% pure-RL catch rate across 400
+held-out hunts, with no biological-controller training in this environment.
+The abstract remained within the 150-word limit and retained the earlier
+league and curriculum results for context.
